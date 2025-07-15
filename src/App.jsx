@@ -1,116 +1,132 @@
 import { useState } from 'react'
+import React from 'react'
 
-const questions = [
-  {
-    question: "What is the capital of India?",
-    options: ["Mumbai", "Delhi", "Kolkata", "Chennai"],
-    answer: "Delhi"
-  },
-  {
-    question: "Who wrote the Ramayana?",
-    options: ["Valmiki", "Tulsidas", "Ved Vyas", "Kalidas"],
-    answer: "Valmiki"
-  },
-  {
-    question: "What is the largest planet in our solar system?",
-    options: ["Earth", "Mars", "Jupiter", "Saturn"],
-    answer: "Jupiter"
-  },
-  {
-    question: "Who is the author of the book 'To Kill a Mockingbird'?",
-    options: ["F. Scott Fitzgerald", "Harper Lee", "Jane Austen", "vishal"],
-    answer: "Harper Lee"
-  }
-];
 
 function App() {
-  const [current, setCurrent] = useState(0);
-  const [score, setScore] = useState(0);
-  const [showResult, setShowResult] = useState(false);
 
-  const handleOptionClick = (option) => {
-    if (option === questions[current].answer) {
-      setScore(score + 1);
-    }
-    if (current + 1 < questions.length) {
-      setCurrent(current + 1);
+  const [input,setInput]=useState('');
+
+  const handleClick = (value) => {
+    if(value==='C'){
+      setInput('');
+
+    } else if (value ==='='){
+      try{
+        setInput(eval(input).toString());
+      } catch{
+        setInput('Error');
+      }
     } else {
-      setShowResult(true);
+      setInput(input + value);
+
     }
+
   };
 
-  const handleRestart = () => {
-    setCurrent(0);
-    setScore(0);
-    setShowResult(false);
-  };
+  const buttons = [
+
+     "7", "8", "9", "/",
+    "4", "5", "6", "*",
+    "1", "2", "3", "-",
+    "0", ".", "C", "+",
+    "=",
+
+
+
+
+  ]
+
+
 
   return (
     <div style={{
-      minHeight: '100vh',
-      background: '#f5f5f5',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}>
+      minHeight:'100vh',
+      background:'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      justifyContent:'center',
+      alignItems:'center',
+      display: "flex",
+    }}> 
+
       <div style={{
-        background: 'white',
-        borderRadius: 12,
-        boxShadow: "0 2px 8px #0002",
-        padding: 32,
-        width: 350,
-        textAlign: 'center'
+        background:'#fff',
+        borderRadius:18,
+        padding:20,
+        width:340,
+        textAlign:'center'
       }}>
-        <h1 style={{ color: 'blue' }}>quiz site</h1>
-        {showResult ? (
-          <div>
-            <h2>your score : {score} / {questions.length}</h2>
-            <button
-              onClick={handleRestart}
-              style={{
-                marginTop: 20,
-                padding: 10,
-                backgroundColor: 'blue',
-                color: 'white',
-                border: 'none',
-                borderRadius: 5,
-                fontSize: 18,
-                cursor: "pointer"
-              }}>
-              restart Quiz
-            </button>
-          </div>
-        ) : (
-          <div>
-            <h2>{questions[current].question}</h2>
-            <div style={{ marginTop: 24 }}>
-              {questions[current].options.map((option, idx) => (
-                <button key={idx}
-                  onClick={() => handleOptionClick(option)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    margin: "10px 0",
-                    padding: "10px",
-                    borderRadius: 6,
-                    border: "1px solid #0078fe",
-                    background: "#f0f8ff",
-                    color: "#222",
-                    fontSize: 16,
-                    cursor: "pointer"
-                  }} >
-                  {option}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginTop: 16, color: '#888' }}>
-              Question {current + 1} of {questions.length}
-            </div>
-          </div>
-        )}
+
+     <h1 style={{
+       color:'#764ba2',
+       fontSize:"2.5rem",
+       marginBottom:20,
+       letterSpacing:2
+
+
+     }}> calculator
+
+     </h1>
+
+     <input type="text" style={{
+      width:'100%',
+      fontSize:30,
+      color:'#333',
+      marginBottom:20,
+      padding:12,
+      textAlign:'right',
+      //background:'#f0f0f0',
+      borderRadius:8,
+      border:'1px soild #ccc',
+      background:'#f7f7fa',
+
+     }} 
+     value={input}
+     readOnly
+     />
+
+     <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gap:14,
+
+     }}>
+      {
+        buttons.map((btn, idx) => (
+          <button key={idx}
+          onClick={() => handleClick(btn)}
+          style={{
+            fontSize:22,
+            padding:12,
+            borderRadius:8,
+            border:"none",
+             background: btn === "=" ? "#764ba2" : btn === "C" ? "#ff4d4d" : "#e0e7ff",
+                color: btn === "=" ? "#fff" : btn === "C" ? "#fff" : "#333",
+                fontWeight: btn === "=" ? "bold" : "normal",
+                cursor: "pointer",
+                transition: "background 0.2s, transform 0.1s",
+                boxShadow: "0 2px 6px #0001",
+             
+
+
+          }}
+           onMouseOver={e => e.currentTarget.style.background = btn === "=" ? "#5a357a" : btn === "C" ? "#d32f2f" : "#c7d2fe"}
+           onMouseOut={e => e.currentTarget.style.background = btn === "=" ? "#764ba2" : btn === "C" ? "#ff4d4d" : "#e0e7ff"}
+            
+
+          >
+
+            {btn}
+          </button>
+      ))}
+
+      <button>
+
+      </button>
+
+     </div>
       </div>
+
     </div>
   )
 }
 
-export default App;
+export default App
