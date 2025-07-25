@@ -6,5 +6,5 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   //root:'docs',
   plugins: [react(), tailwindcss()],
-  base: '/calculatorzz/', // <-- Add this line for GitHub Pages deployment
+  base: '/ai-chat/', // <-- Add this line for GitHub Pages deployment
 })
