@@ -7,4 +7,4 @@ export default defineConfig({
   //root:'docs',
   plugins: [react(), tailwindcss()],
   base: '/ai-chat/', // <-- Add this line for GitHub Pages deployment
-})
+}) 
