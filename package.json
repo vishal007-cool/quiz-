@@ -1,21 +1,28 @@
 {
-  "name": "ai-chat",
-  "homepage": "https://vishal007-cool.github.io/ai-chat",
+  "name": "portfolio-site",
+  "homepage": "https://vishal007-cool.github.io/portfolio-site/",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
     "preview": "vite preview",
+    "lint": "eslint .",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
-    "firebase": "^12.0.0",
+    "axios": "^1.11.0",
+    "firebase": "^12.2.1",
+    "framer-motion": "^12.23.15",
+    "html5-qrcode": "^2.3.8",
+    "immer": "^10.1.3",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "socket.io-client": "^4.8.1"
+    "recharts": "^3.2.1",
+    "socket.io-client": "^4.8.1",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.11",
