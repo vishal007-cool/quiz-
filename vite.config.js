@@ -6,5 +6,5 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   //root:'docs',
   plugins: [react(), tailwindcss()],
-  base: '/portfolio-site/' , // <-- Add this line for GitHub Pages deployment
+  base: '/nxtstore-website/' , // <-- Add this line for GitHub Pages deployment
 }) 

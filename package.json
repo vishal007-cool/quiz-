@@ -1,6 +1,6 @@
 {
-  "name": "portfolio-site",
-  "homepage": "https://vishal007-cool.github.io/portfolio-site/",
+  "name": "nxtstore-website",
+  "homepage": "https://vishal007-cool.github.io/nxtstore-website/",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
+    "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {

@@ -1,27 +1,18 @@
-/*const http = require('http');
+// Import the framework and instantiate it
+import Fastify from 'fastify'
+const fastify = Fastify({
+  logger: true
+})
 
-const PORT = 3001; // Change this line
+// Declare a route
+fastify.get('/', async function handler (request, reply) {
+  return { hello: 'world' }
+})
 
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Hello, world!');
-});
-
-server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}/`);
-}); */
-
- const http = require('http');
-
- const port = 5200;
-
-  const server = http.createServer ((req,res) => {
-    res.writeHead(200, {'content-type' : 'text/plain'});
-    res.end("hello vishayugyuegdyueygduyegygvvvl");
-  });
-
-  server.listen(port,() =>{
-    console.log(`server running at http://localhost:${port}/`);
-  }
-  )
-
+// Run the server!
+try {
+  await fastify.listen({ port: 3000 })
+} catch (err) {
+  fastify.log.error(err)
+  process.exit(1)
+}
