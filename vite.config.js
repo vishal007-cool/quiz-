@@ -7,5 +7,5 @@ export default defineConfig({
     react(),
     tailwindcss()   // 🟢 Tailwind plugin added
   ],
-  base: "/nxtstore-ecommerce-site/",   // GitHub Pages base URL
+  base: "/gemini-ai/",   // GitHub Pages base URL
 });

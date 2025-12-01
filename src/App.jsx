@@ -1,1057 +1,519 @@
-import React, { useState, useEffect, useContext, useReducer, createContext, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ShoppingCart, Search, Menu, X, Star, Heart, User, LogOut, 
-  ChevronRight, ChevronLeft, Trash2, Plus, Minus, CreditCard, 
-  MapPin, Check, LayoutDashboard, Package, Edit, Settings, ArrowRight 
+  Menu, 
+  Plus, 
+  Send, 
+  Settings, 
+  MessageSquare, 
+  X, 
+  Sparkles, 
+  User, 
+  Bot,
+  MoreVertical,
+  Trash2,
+  Moon,
+  Sun,
+  Code
 } from 'lucide-react';
 
-/**
- * MOCK DATA & CONFIGURATION
- * ------------------------------------------------------------------
- */
-const MOCK_CATEGORIES = ["Electronics", "Fashion", "Home & Garden", "Books"];
+const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
 
-const INITIAL_PRODUCTS = [
-  { id: 1, title: "Pro Noise-Cancelling Headphones", price: 299.99, category: "Electronics", rating: 4.8, reviews: 124, image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1000&auto=format&fit=crop", description: "Industry-leading noise cancellation, 30-hour battery life, and premium sound quality.", stock: 15 },
-  { id: 2, title: "Ergonomic Mesh Office Chair", price: 149.50, category: "Home & Garden", rating: 4.5, reviews: 89, image: "https://images.unsplash.com/photo-1580480055273-228ff5388ef8?q=80&w=1000&auto=format&fit=crop", description: "Breathable mesh back, adjustable lumbar support, and heavy-duty base.", stock: 5 },
-  { id: 3, title: "Minimalist Cotton T-Shirt", price: 24.99, category: "Fashion", rating: 4.2, reviews: 230, image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=1000&auto=format&fit=crop", description: "100% organic cotton, pre-shrunk, classic fit suitable for all occasions.", stock: 100 },
-  { id: 4, title: "The Art of Code", price: 39.99, category: "Books", rating: 5.0, reviews: 45, image: "https://images.unsplash.com/photo-1532012197267-da84d127e765?q=80&w=1000&auto=format&fit=crop", description: "A comprehensive guide to software architecture and design patterns.", stock: 30 },
-  { id: 5, title: "4K Ultra HD Smart TV 55\"", price: 699.00, category: "Electronics", rating: 4.6, reviews: 312, image: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?q=80&w=1000&auto=format&fit=crop", description: "Vibrant colors, smart connectivity, and cinema-quality sound.", stock: 8 },
-  { id: 6, title: "Running Sneakers v3", price: 89.95, category: "Fashion", rating: 4.3, reviews: 67, image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1000&auto=format&fit=crop", description: "Lightweight, responsive cushioning for long-distance runs.", stock: 22 },
-  { id: 7, title: "Smart Home Assistant Speaker", price: 49.99, category: "Electronics", rating: 4.1, reviews: 540, image: "https://images.unsplash.com/photo-1589003077984-8334030db52a?q=80&w=1000&auto=format&fit=crop", description: "Control your home with voice commands. Compact and powerful.", stock: 45 },
-  { id: 8, title: "Ceramic Coffee Mug Set", price: 34.00, category: "Home & Garden", rating: 4.7, reviews: 28, image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?q=80&w=1000&auto=format&fit=crop", description: "Set of 4 handcrafted ceramic mugs. Dishwasher safe.", stock: 12 },
-];
+export default function App() {
+  const [apiKey, setApiKey] = useState('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
-const MOCK_USER = {
-  id: 'u1',
-  name: 'Demo User',
-  email: 'demo@example.com',
-  addresses: [{ id: 1, line1: "123 React Lane", city: "Component City", zip: "90210", default: true }],
-  isAdmin: false
-};
-
-const MOCK_ADMIN = {
-  id: 'a1',
-  name: 'Admin User',
-  email: 'admin@example.com',
-  addresses: [],
-  isAdmin: true
-};
-
-/**
- * CONTEXT & STATE MANAGEMENT
- * ------------------------------------------------------------------
- */
-const ShopContext = createContext();
-
-const shopReducer = (state, action) => {
-  switch (action.type) {
-    case 'INIT_APP':
-      return { ...state, cart: action.payload.cart || [], user: action.payload.user || null };
-    case 'SET_VIEW':
-      return { ...state, currentView: action.payload.view, viewParams: action.payload.params || {} };
-    case 'LOGIN':
-      localStorage.setItem('nexstore_user', JSON.stringify(action.payload));
-      return { ...state, user: action.payload, currentView: 'home' };
-    case 'LOGOUT':
-      localStorage.removeItem('nexstore_user');
-      return { ...state, user: null, currentView: 'login' };
-    case 'ADD_TO_CART': {
-      const existingItem = state.cart.find(item => item.id === action.payload.id);
-      let newCart;
-      if (existingItem) {
-        newCart = state.cart.map(item => 
-          item.id === action.payload.id ? { ...item, qty: item.qty + 1 } : item
-        );
-      } else {
-        newCart = [...state.cart, { ...action.payload, qty: 1 }];
-      }
-      localStorage.setItem('nexstore_cart', JSON.stringify(newCart));
-      return { ...state, cart: newCart };
-    }
-    case 'UPDATE_CART_QTY': {
-      const newCart = state.cart.map(item => 
-        item.id === action.payload.id ? { ...item, qty: Math.max(0, action.payload.qty) } : item
-      ).filter(item => item.qty > 0);
-      localStorage.setItem('nexstore_cart', JSON.stringify(newCart));
-      return { ...state, cart: newCart };
-    }
-    case 'CLEAR_CART':
-      localStorage.removeItem('nexstore_cart');
-      return { ...state, cart: [] };
-    case 'UPDATE_PRODUCTS':
-      return { ...state, products: action.payload };
-    default:
-      return state;
-  }
-};
-
-const ShopProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(shopReducer, {
-    user: null,
-    cart: [],
-    products: INITIAL_PRODUCTS,
-    currentView: 'home',
-    viewParams: {},
-    isLoading: false,
-  });
-
-  // Load persistence
+  // Load data on mount
   useEffect(() => {
-    const savedCart = JSON.parse(localStorage.getItem('nexstore_cart'));
-    const savedUser = JSON.parse(localStorage.getItem('nexstore_user'));
-    dispatch({ type: 'INIT_APP', payload: { cart: savedCart, user: savedUser } });
+    const storedKey = localStorage.getItem('gemini_api_key');
+    const storedHistory = localStorage.getItem('gemini_history');
+    if (storedKey) setApiKey(storedKey);
+    if (storedHistory) {
+      const parsedHistory = JSON.parse(storedHistory);
+      setHistory(parsedHistory);
+      // Start a new chat by default if history exists, or load the last one? 
+      // Let's start fresh.
+      startNewChat(); 
+    } else {
+      startNewChat();
+    }
+    
+    // Check system preference for dark mode
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      setIsDarkMode(false);
+    }
   }, []);
 
-  // Simulating Toast/Notification
-  const [notification, setNotification] = useState(null);
-  const showNotification = (msg) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
+  // Save history when it changes
+  useEffect(() => {
+    localStorage.setItem('gemini_history', JSON.stringify(history));
+  }, [history]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [input]);
+
+  const saveApiKey = (key) => {
+    setApiKey(key);
+    localStorage.setItem('gemini_api_key', key);
+    setIsSettingsOpen(false);
   };
 
-  const actions = {
-    setView: (view, params) => dispatch({ type: 'SET_VIEW', payload: { view, params } }),
-    login: (email, password) => {
-      // Mock Auth Logic
-      if (email === 'admin@example.com' && password === 'admin') {
-        dispatch({ type: 'LOGIN', payload: MOCK_ADMIN });
-        showNotification("Welcome back, Admin!");
-        return true;
-      } else if (email === 'demo@example.com' && password === 'password') {
-        dispatch({ type: 'LOGIN', payload: MOCK_USER });
-        showNotification("Welcome back, Demo User!");
-        return true;
+  const startNewChat = () => {
+    const newId = Date.now().toString();
+    const newChat = { id: newId, title: 'New Chat', messages: [] };
+    setHistory(prev => [newChat, ...prev]);
+    setCurrentChatId(newId);
+    setMessages([]);
+    setIsSidebarOpen(false);
+    
+    // Reset textarea height
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  };
+
+  const loadChat = (chatId) => {
+    const chat = history.find(h => h.id === chatId);
+    if (chat) {
+      setCurrentChatId(chatId);
+      setMessages(chat.messages);
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const deleteChat = (e, chatId) => {
+    e.stopPropagation();
+    const newHistory = history.filter(h => h.id !== chatId);
+    setHistory(newHistory);
+    if (currentChatId === chatId) {
+      if (newHistory.length > 0) {
+        loadChat(newHistory[0].id);
+      } else {
+        startNewChat();
       }
-      return false;
-    },
-    logout: () => {
-      dispatch({ type: 'LOGOUT' });
-      showNotification("Logged out successfully.");
-    },
-    addToCart: (product) => {
-      dispatch({ type: 'ADD_TO_CART', payload: product });
-      showNotification(`Added ${product.title} to cart`);
-    },
-    updateQty: (id, qty) => dispatch({ type: 'UPDATE_CART_QTY', payload: { id, qty } }),
-    clearCart: () => dispatch({ type: 'CLEAR_CART' }),
-    updateProduct: (product) => {
-      const updated = state.products.map(p => p.id === product.id ? product : p);
-      dispatch({ type: 'UPDATE_PRODUCTS', payload: updated });
-      showNotification("Product updated successfully");
     }
   };
 
-  return (
-    <ShopContext.Provider value={{ ...state, ...actions, notification }}>
-      {children}
-    </ShopContext.Provider>
-  );
-};
-
-const useShop = () => useContext(ShopContext);
-
-/**
- * REUSABLE UI COMPONENTS (Design System)
- * ------------------------------------------------------------------
- */
-const Button = ({ children, variant = 'primary', className = '', ...props }) => {
-  const baseStyle = "px-4 py-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
-  const variants = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
-    secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200 focus:ring-gray-400",
-    outline: "border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-400",
-    danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
-  };
-  return (
-    <button className={`${baseStyle} ${variants[variant]} ${className}`} {...props}>
-      {children}
-    </button>
-  );
-};
-
-const Input = ({ label, error, className = '', ...props }) => (
-  <div className={`mb-4 ${className}`}>
-    {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
-    <input 
-      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${error ? 'border-red-500' : 'border-gray-300'}`}
-      {...props}
-    />
-    {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-  </div>
-);
-
-const Rating = ({ value, count }) => (
-  <div className="flex items-center text-sm">
-    {[...Array(5)].map((_, i) => (
-      <Star 
-        key={i} 
-        size={16} 
-        className={i < Math.round(value) ? "text-yellow-400 fill-current" : "text-gray-300"} 
-      />
-    ))}
-    {count !== undefined && <span className="ml-1 text-gray-500">({count})</span>}
-  </div>
-);
-
-const Badge = ({ children, color = "blue" }) => (
-  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-${color}-100 text-${color}-800`}>
-    {children}
-  </span>
-);
-
-const LoadingSpinner = () => (
-  <div className="flex justify-center items-center p-12">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-  </div>
-);
-
-/**
- * FEATURE COMPONENTS
- * ------------------------------------------------------------------
- */
-
-const ProductCard = ({ product }) => {
-  const { addToCart, setView } = useShop();
-
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group">
-      <div 
-        className="h-48 flex items-center justify-center bg-gray-50 rounded-t-lg cursor-pointer relative overflow-hidden"
-        onClick={() => setView('product', { id: product.id })}
-      >
-        <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-      </div>
-      <div className="p-4 flex flex-col flex-grow">
-        <div className="text-xs text-gray-500 mb-1">{product.category}</div>
-        <h3 
-          className="text-lg font-semibold text-gray-900 mb-1 cursor-pointer hover:text-blue-600 line-clamp-2"
-          onClick={() => setView('product', { id: product.id })}
-        >
-          {product.title}
-        </h3>
-        <Rating value={product.rating} count={product.reviews} />
-        <div className="mt-auto pt-4 flex items-center justify-between">
-          <span className="text-xl font-bold text-gray-900">${product.price.toFixed(2)}</span>
-          <Button size="sm" onClick={() => addToCart(product)} aria-label={`Add ${product.title} to cart`}>
-            Add to Cart
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Navbar = () => {
-  const { cart, user, setView, currentView, logout } = useShop();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const cartCount = cart.reduce((acc, item) => acc + item.qty, 0);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setView('listing', { search: searchTerm });
+  const generateTitle = async (firstMessage, assistantResponse) => {
+    // A simple heuristic for title generation to save API calls
+    return firstMessage.length > 30 ? firstMessage.substring(0, 30) + '...' : firstMessage;
   };
 
-  return (
-    <nav className="bg-gray-900 text-white sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          
-          {/* Logo & Mobile Menu Button */}
-          <div className="flex items-center">
-            <button className="sm:hidden p-2 mr-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <div 
-              className="flex items-center cursor-pointer font-bold text-xl tracking-tight"
-              onClick={() => setView('home')}
-            >
-              <span className="text-blue-400 mr-1">NXT</span>Store
-            </div>
-          </div>
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    if (!apiKey) {
+      setIsSettingsOpen(true);
+      return;
+    }
 
-          {/* Search Bar - Desktop */}
-          <div className="hidden sm:flex flex-1 max-w-2xl mx-8">
-            <form onSubmit={handleSearch} className="w-full relative">
-              <input 
-                type="text" 
-                placeholder="Search products..." 
-                className="w-full bg-gray-800 text-white border-none rounded-l-md py-2 px-4 focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <button type="submit" className="absolute right-0 top-0 h-full bg-blue-600 px-4 rounded-r-md hover:bg-blue-700">
-                <Search size={20} />
-              </button>
-            </form>
-          </div>
+    const userMessage = { role: 'user', content: input };
+    const newMessages = [...messages, userMessage];
+    
+    setMessages(newMessages);
+    setInput('');
+    setIsLoading(true);
+    
+    // Reset textarea height
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-          {/* Right Icons */}
-          <div className="flex items-center space-x-4">
-            <div className="relative cursor-pointer" onClick={() => setView('cart')}>
-              <ShoppingCart size={24} className="hover:text-blue-400 transition-colors" />
-              {cartCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
-            </div>
-            
-            {user ? (
-              <div className="relative group">
-                <div className="flex items-center cursor-pointer hover:text-blue-400">
-                  <User size={24} />
-                  <span className="ml-2 text-sm font-medium hidden md:block">Hi, {user.name.split(' ')[0]}</span>
-                </div>
-                {/* Dropdown */}
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block text-gray-800 border border-gray-100">
-                  <div className="px-4 py-2 text-xs text-gray-500 border-b">Signed in as<br/><b>{user.email}</b></div>
-                  {user.isAdmin && (
-                     <button onClick={() => setView('admin')} className="block w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
-                       <LayoutDashboard size={16}/> Admin Dashboard
-                     </button>
-                  )}
-                  <button onClick={() => setView('profile')} className="block w-full text-left px-4 py-2 hover:bg-gray-100">Orders & Profile</button>
-                  <button onClick={logout} className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600">Sign Out</button>
-                </div>
-              </div>
-            ) : (
-              <Button variant="primary" size="sm" onClick={() => setView('login')}>Sign In</Button>
-            )}
-          </div>
-        </div>
-      </div>
+    try {
+      // Build the payload
+      // Note: We are using the REST API directly. In a production Express app, 
+      // this fetch would go to your backend (e.g., /api/chat) which would then call Google.
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: newMessages.map(m => ({
+              role: m.role === 'user' ? 'user' : 'model',
+              parts: [{ text: m.content }]
+            }))
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to fetch response');
+      }
+
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate a response.";
       
-      {/* Mobile Search & Menu */}
-      {isMenuOpen && (
-        <div className="sm:hidden bg-gray-800 px-4 pt-2 pb-4 space-y-3">
-          <form onSubmit={handleSearch} className="flex">
-            <input 
-              className="flex-1 bg-gray-700 text-white p-2 rounded-l-md" 
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <button className="bg-blue-600 p-2 rounded-r-md"><Search size={20}/></button>
-          </form>
-          <div className="space-y-1">
-            {MOCK_CATEGORIES.map(cat => (
-              <div 
-                key={cat} 
-                className="block px-3 py-2 rounded-md text-base font-medium hover:bg-gray-700 cursor-pointer"
-                onClick={() => { setView('listing', { category: cat }); setIsMenuOpen(false); }}
-              >
-                {cat}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </nav>
-  );
-};
+      const assistantMessage = { role: 'model', content: aiText };
+      const updatedMessages = [...newMessages, assistantMessage];
+      setMessages(updatedMessages);
 
-/**
- * PAGE VIEWS
- * ------------------------------------------------------------------
- */
-
-const HomePage = () => {
-  const { products, setView } = useShop();
-
-  const featured = products.slice(0, 4);
-  const bestSellers = products.slice(4, 8);
-
-  return (
-    <div className="space-y-8 pb-12">
-      {/* Hero */}
-      <div className="bg-gray-900 text-white py-16 px-4 sm:px-8 rounded-b-xl sm:rounded-xl mx-0 sm:mx-4 mt-0 sm:mt-4 relative overflow-hidden">
-        <div className="relative z-10 max-w-2xl">
-          <Badge color="blue">New Arrivals</Badge>
-          <h1 className="text-4xl sm:text-5xl font-extrabold mt-4 mb-6 leading-tight">
-            Discover the Future <br/><span className="text-blue-400">Of Shopping</span>
-          </h1>
-          <p className="text-lg text-gray-300 mb-8">
-            Experience premium quality products delivered to your doorstep with our lightning-fast logistics network.
-          </p>
-          <Button size="lg" onClick={() => setView('listing')}>
-            Shop Now <ArrowRight size={20} className="ml-2 inline" />
-          </Button>
-        </div>
-        <div className="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-blue-900 to-transparent opacity-50 pointer-events-none"></div>
-      </div>
-
-      {/* Categories */}
-      <div className="max-w-7xl mx-auto px-4">
-        <h2 className="text-2xl font-bold mb-6">Shop by Category</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {MOCK_CATEGORIES.map(cat => (
-            <div 
-              key={cat} 
-              onClick={() => setView('listing', { category: cat })}
-              className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md cursor-pointer transition-all hover:-translate-y-1 text-center group"
-            >
-              <div className="text-3xl mb-3 group-hover:scale-110 transition-transform inline-block">
-                {cat === 'Electronics' ? '💻' : cat === 'Fashion' ? '👗' : cat === 'Home & Garden' ? '🏡' : '📚'}
-              </div>
-              <h3 className="font-semibold text-gray-800">{cat}</h3>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Featured Rows */}
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between items-end mb-6">
-          <h2 className="text-2xl font-bold">Featured Products</h2>
-          <button className="text-blue-600 hover:underline text-sm font-medium" onClick={() => setView('listing')}>View All</button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-          {featured.map(p => <ProductCard key={p.id} product={p} />)}
-        </div>
-      </div>
-
-      <div className="bg-gray-50 py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-2xl font-bold mb-6">Best Sellers</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-            {bestSellers.map(p => <ProductCard key={p.id} product={p} />)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ListingPage = () => {
-  const { products, viewParams } = useShop();
-  const [filters, setFilters] = useState({
-    category: viewParams.category || 'All',
-    maxPrice: 1000,
-    search: viewParams.search || ''
-  });
-
-  // Filter Logic
-  const filteredProducts = useMemo(() => {
-    return products.filter(p => {
-      const matchCat = filters.category === 'All' || p.category === filters.category;
-      const matchPrice = p.price <= filters.maxPrice;
-      const matchSearch = p.title.toLowerCase().includes(filters.search.toLowerCase());
-      return matchCat && matchPrice && matchSearch;
-    });
-  }, [products, filters]);
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-4 gap-8">
-      {/* Sidebar Filters */}
-      <div className="space-y-6">
-        <div>
-          <h3 className="font-bold text-gray-900 mb-3">Categories</h3>
-          <div className="space-y-2">
-            <label className="flex items-center">
-              <input 
-                type="radio" 
-                name="category" 
-                checked={filters.category === 'All'} 
-                onChange={() => setFilters({ ...filters, category: 'All' })}
-                className="text-blue-600 focus:ring-blue-500" 
-              />
-              <span className="ml-2 text-gray-700">All Categories</span>
-            </label>
-            {MOCK_CATEGORIES.map(cat => (
-              <label key={cat} className="flex items-center">
-                <input 
-                  type="radio" 
-                  name="category" 
-                  checked={filters.category === cat}
-                  onChange={() => setFilters({ ...filters, category: cat })}
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span className="ml-2 text-gray-700">{cat}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-gray-900 mb-3">Price Range</h3>
-          <input 
-            type="range" 
-            min="0" 
-            max="1000" 
-            value={filters.maxPrice}
-            onChange={(e) => setFilters({...filters, maxPrice: Number(e.target.value)})}
-            className="w-full"
-          />
-          <div className="flex justify-between text-sm text-gray-500 mt-1">
-            <span>$0</span>
-            <span>${filters.maxPrice}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Product Grid */}
-      <div className="md:col-span-3">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-xl font-bold">
-            {filters.search ? `Results for "${filters.search}"` : 
-             filters.category !== 'All' ? filters.category : 'All Products'}
-          </h1>
-          <span className="text-sm text-gray-500">{filteredProducts.length} items found</span>
-        </div>
-
-        {filteredProducts.length === 0 ? (
-          <div className="text-center py-20 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">No products match your criteria.</p>
-            <Button variant="outline" className="mt-4" onClick={() => setFilters({category: 'All', maxPrice: 1000, search: ''})}>Clear Filters</Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProducts.map(p => <ProductCard key={p.id} product={p} />)}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const ProductDetailPage = () => {
-  const { products, viewParams, addToCart, setView } = useShop();
-  const product = products.find(p => p.id === viewParams.id);
-
-  if (!product) return <div>Product not found</div>;
-
-  const related = products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <Button variant="outline" className="mb-6 flex items-center" onClick={() => setView('listing')}>
-        <ChevronLeft size={16} className="mr-1" /> Back to Results
-      </Button>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 bg-white rounded-xl shadow-sm p-6 sm:p-10 mb-12">
-        {/* Image */}
-        <div className="flex items-center justify-center bg-gray-50 rounded-xl min-h-[400px] overflow-hidden">
-          <img src={product.image} alt={product.title} className="w-full h-full object-cover animate-fade-in" />
-        </div>
-
-        {/* Details */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-blue-600 tracking-wide uppercase">{product.category}</span>
-            <div className="flex items-center text-gray-500 text-sm">
-              <Star size={16} className="text-yellow-400 fill-current mr-1" />
-              <span className="font-bold text-gray-900 mr-1">{product.rating}</span>
-              <span>({product.reviews} reviews)</span>
-            </div>
-          </div>
-          
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">{product.title}</h1>
-          <p className="text-4xl font-bold text-gray-900 mb-6">${product.price.toFixed(2)}</p>
-          
-          <p className="text-gray-600 leading-relaxed mb-8">{product.description}</p>
-          
-          <div className="flex items-center space-x-4 mb-8">
-            <div className="text-green-600 font-medium flex items-center">
-              <Check size={16} className="mr-1" /> In Stock ({product.stock} available)
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <Button className="flex-1 py-3 text-lg" onClick={() => addToCart(product)}>Add to Cart</Button>
-            <Button variant="secondary" className="px-4"><Heart size={20}/></Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Related Products */}
-      {related.length > 0 && (
-        <div className="mt-16">
-          <h3 className="text-xl font-bold mb-6">Related Products</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-            {related.map(p => <ProductCard key={p.id} product={p} />)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const CartPage = () => {
-  const { cart, updateQty, setView } = useShop();
-  
-  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  const tax = subtotal * 0.08;
-  const total = subtotal + tax;
-
-  if (cart.length === 0) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <div className="inline-block p-6 bg-gray-100 rounded-full mb-4">
-          <ShoppingCart size={48} className="text-gray-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
-        <p className="text-gray-500 mb-8">Looks like you haven't added anything to your cart yet.</p>
-        <Button onClick={() => setView('listing')}>Start Shopping</Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-8">Shopping Cart</h1>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Cart Items */}
-        <div className="lg:col-span-2 space-y-4">
-          {cart.map(item => (
-            <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-              <div className="h-20 w-20 bg-gray-50 rounded-md flex items-center justify-center overflow-hidden">
-                <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                <p className="text-gray-500 text-sm">{item.category}</p>
-                <div className="font-bold mt-1">${item.price.toFixed(2)}</div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button className="p-1 hover:bg-gray-100 rounded" onClick={() => updateQty(item.id, item.qty - 1)}>
-                  <Minus size={16} />
-                </button>
-                <span className="w-8 text-center font-medium">{item.qty}</span>
-                <button className="p-1 hover:bg-gray-100 rounded" onClick={() => updateQty(item.id, item.qty + 1)}>
-                  <Plus size={16} />
-                </button>
-              </div>
-              <button className="text-red-500 p-2 hover:bg-red-50 rounded" onClick={() => updateQty(item.id, 0)}>
-                <Trash2 size={18} />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Summary */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 h-fit">
-          <h3 className="text-lg font-bold mb-4">Order Summary</h3>
-          <div className="space-y-3 mb-6">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Tax (8%)</span>
-              <span>${tax.toFixed(2)}</span>
-            </div>
-            <div className="border-t pt-3 flex justify-between font-bold text-lg">
-              <span>Total</span>
-              <span>${total.toFixed(2)}</span>
-            </div>
-          </div>
-          <Button className="w-full" size="lg" onClick={() => setView('checkout')}>
-            Proceed to Checkout
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const CheckoutPage = () => {
-  const { cart, user, clearCart, setView } = useShop();
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  
-  // Checkout Form State
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    address: user?.addresses[0]?.line1 || '',
-    city: user?.addresses[0]?.city || '',
-    zip: user?.addresses[0]?.zip || '',
-    cardName: '',
-    cardNumber: '',
-    expiry: '',
-    cvv: ''
-  });
-
-  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  const total = subtotal * 1.08;
-
-  const handlePlaceOrder = () => {
-    setLoading(true);
-    // Simulate API Call
-    setTimeout(() => {
-      setLoading(false);
-      clearCart();
-      setView('profile'); // Should redirect to success page in real app, simplified here
-      alert("Order placed successfully!");
-    }, 2000);
-  };
-
-  const StepIndicator = () => (
-    <div className="flex justify-center mb-8">
-      {[1, 2, 3].map(i => (
-        <div key={i} className="flex items-center">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= i ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
-            {i}
-          </div>
-          {i < 3 && <div className={`w-12 h-1 mx-2 ${step > i ? 'bg-blue-600' : 'bg-gray-200'}`} />}
-        </div>
-      ))}
-    </div>
-  );
-
-  return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-center mb-6">Checkout</h1>
-      <StepIndicator />
-
-      <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100">
-        {step === 1 && (
-          <div>
-            <h2 className="text-xl font-bold mb-4 flex items-center"><MapPin className="mr-2"/> Shipping Address</h2>
-            <div className="grid grid-cols-1 gap-4">
-              <Input label="Full Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-              <Input label="Address Line 1" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="City" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} />
-                <Input label="ZIP / Postal Code" value={formData.zip} onChange={e => setFormData({...formData, zip: e.target.value})} />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end">
-              <Button onClick={() => setStep(2)}>Next: Payment</Button>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div>
-            <h2 className="text-xl font-bold mb-4 flex items-center"><CreditCard className="mr-2"/> Payment Method</h2>
-            <div className="p-4 bg-gray-50 rounded-lg border mb-4">
-              <p className="text-sm text-gray-500 mb-2">This is a mock checkout. No real money is charged.</p>
-              <div className="flex gap-2 text-2xl opacity-50">
-                 💳 💳 💳
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-              <Input label="Name on Card" placeholder="John Doe" value={formData.cardName} onChange={e => setFormData({...formData, cardName: e.target.value})} />
-              <Input label="Card Number" placeholder="0000 0000 0000 0000" value={formData.cardNumber} onChange={e => setFormData({...formData, cardNumber: e.target.value})} />
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="Expiry Date" placeholder="MM/YY" value={formData.expiry} onChange={e => setFormData({...formData, expiry: e.target.value})} />
-                <Input label="CVV" placeholder="123" value={formData.cvv} onChange={e => setFormData({...formData, cvv: e.target.value})} />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-between">
-              <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-              <Button onClick={() => setStep(3)}>Next: Review</Button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div>
-            <h2 className="text-xl font-bold mb-4">Review Order</h2>
-            <div className="border-b pb-4 mb-4">
-              <div className="text-gray-600 mb-1">Shipping to:</div>
-              <div className="font-medium">{formData.name}</div>
-              <div>{formData.address}, {formData.city} {formData.zip}</div>
-            </div>
-            <div className="space-y-2 mb-6">
-              {cart.map(item => (
-                <div key={item.id} className="flex justify-between text-sm">
-                  <span>{item.qty}x {item.title}</span>
-                  <span className="font-medium">${(item.price * item.qty).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between text-xl font-bold border-t pt-4 mb-8">
-              <span>Order Total</span>
-              <span>${total.toFixed(2)}</span>
-            </div>
+      // Update History
+      setHistory(prev => prev.map(chat => {
+        if (chat.id === currentChatId) {
+          // Update title if it's the first message
+          const title = chat.messages.length === 0 
+            ? (userMessage.content.length > 25 ? userMessage.content.substring(0, 25) + '...' : userMessage.content)
+            : chat.title;
             
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(2)} disabled={loading}>Back</Button>
-              <Button onClick={handlePlaceOrder} disabled={loading} className="w-1/2">
-                {loading ? 'Processing...' : `Pay $${total.toFixed(2)}`}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+          return { ...chat, messages: updatedMessages, title };
+        }
+        return chat;
+      }));
 
-const AuthPage = () => {
-  const { login } = useShop();
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('demo@example.com');
-  const [password, setPassword] = useState('password');
-  const [error, setError] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (isLogin) {
-      const success = login(email, password);
-      if (!success) setError("Invalid credentials. Try demo@example.com / password");
-    } else {
-      // Fake registration
-      login(email, password); // just log them in for MVP
+    } catch (error) {
+      console.error(error);
+      setMessages(prev => [...prev, { role: 'model', content: `Error: ${error.message}. Please check your API Key.` }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
-          <p className="text-gray-500 mt-2">
-            {isLogin ? 'Sign in to access your orders' : 'Join the marketplace today'}
-          </p>
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Simple Markdown-ish renderer
+  const renderContent = (text) => {
+    // Split code blocks
+    const parts = text.split(/(```[\s\S]*?```)/g);
+    
+    return parts.map((part, index) => {
+      if (part.startsWith('```')) {
+        const codeContent = part.replace(/^```\w*\n?/, '').replace(/```$/, '');
+        return (
+          <div key={index} className="my-4 rounded-lg overflow-hidden bg-black/80 text-gray-200 text-sm font-mono">
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-xs text-gray-400">
+              <span>Code</span>
+              <button 
+                onClick={() => navigator.clipboard.writeText(codeContent)}
+                className="hover:text-white"
+              >
+                Copy
+              </button>
+            </div>
+            <div className="p-4 overflow-x-auto whitespace-pre">
+              {codeContent}
+            </div>
+          </div>
+        );
+      }
+      
+      // Basic formatting for bold and paragraphs
+      return (
+        <div key={index} className="whitespace-pre-wrap leading-relaxed">
+          {part.split('\n').map((line, i) => (
+            <React.Fragment key={i}>
+              {line.split(/(\*\*.*?\*\*)/g).map((chunk, j) => 
+                chunk.startsWith('**') && chunk.endsWith('**') ? (
+                  <strong key={j} className="font-bold text-blue-300">
+                    {chunk.slice(2, -2)}
+                  </strong>
+                ) : (
+                  <span key={j}>{chunk}</span>
+                )
+              )}
+              {i < part.split('\n').length - 1 && <br />}
+            </React.Fragment>
+          ))}
         </div>
+      );
+    });
+  };
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Input 
-            label="Email Address" 
-            type="email" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
-          />
-          <Input 
-            label="Password" 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
-          />
-          {error && <div className="text-red-500 text-sm">{error}</div>}
-          
-          <Button type="submit" className="w-full py-3">
-            {isLogin ? 'Sign In' : 'Sign Up'}
-          </Button>
-        </form>
+  // --- Themes ---
+  const theme = isDarkMode ? {
+    bg: 'bg-[#131314]',
+    sidebar: 'bg-[#1e1f20]',
+    text: 'text-gray-100',
+    textSecondary: 'text-gray-400',
+    inputBg: 'bg-[#1e1f20]',
+    messageUser: 'bg-[#282a2c]',
+    messageAi: 'bg-transparent',
+    border: 'border-gray-700',
+    hover: 'hover:bg-[#333537]',
+  } : {
+    bg: 'bg-white',
+    sidebar: 'bg-gray-50',
+    text: 'text-gray-800',
+    textSecondary: 'text-gray-500',
+    inputBg: 'bg-gray-100',
+    messageUser: 'bg-gray-100',
+    messageAi: 'bg-transparent',
+    border: 'border-gray-200',
+    hover: 'hover:bg-gray-200',
+  };
 
-        <div className="mt-6 text-center text-sm">
-          <span className="text-gray-600">
-            {isLogin ? "Don't have an account? " : "Already have an account? "}
-          </span>
-          <button 
-            className="text-blue-600 font-bold hover:underline"
-            onClick={() => { setIsLogin(!isLogin); setError(''); }}
+  return (
+    <div className={`flex h-screen w-full overflow-hidden ${theme.bg} ${theme.text} font-sans transition-colors duration-200`}>
+      
+      {/* Overlay for mobile sidebar */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-20 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={`
+        fixed md:static inset-y-0 left-0 z-30 w-72 transform transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        ${theme.sidebar} flex flex-col border-r ${theme.border}
+      `}>
+        <div className="p-4 flex items-center justify-between">
+          <div 
+            onClick={() => setIsSidebarOpen(false)} 
+            className="md:hidden p-2 rounded-full hover:bg-white/10 cursor-pointer"
           >
-            {isLogin ? 'Sign Up' : 'Sign In'}
+            <Menu size={20} />
+          </div>
+          <h1 className="text-xl font-semibold bg-gradient-to-r from-blue-400 to-red-400 bg-clip-text text-transparent">Gemini Clone</h1>
+          <button 
+             onClick={() => setIsDarkMode(!isDarkMode)}
+             className={`p-2 rounded-full ${theme.hover}`}
+          >
+             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
         </div>
-        
-        <div className="mt-8 pt-6 border-t text-xs text-center text-gray-400">
-          Demo User: demo@example.com / password<br/>
-          Admin User: admin@example.com / admin
+
+        <div className="px-4 pb-4">
+          <button 
+            onClick={startNewChat}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-full ${theme.hover} transition-colors border ${theme.border} ${isDarkMode ? 'bg-[#282a2c]' : 'bg-white'} shadow-sm`}
+          >
+            <Plus size={18} className="text-gray-400" />
+            <span className="text-sm font-medium">New chat</span>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-2 space-y-1 custom-scrollbar">
+          <div className={`px-4 py-2 text-xs font-medium ${theme.textSecondary}`}>Recent</div>
+          {history.map(chat => (
+            <div 
+              key={chat.id}
+              onClick={() => loadChat(chat.id)}
+              className={`
+                group flex items-center justify-between px-4 py-2 rounded-full cursor-pointer text-sm
+                ${currentChatId === chat.id ? (isDarkMode ? 'bg-[#004a77] text-blue-100' : 'bg-blue-100 text-blue-800') : theme.hover}
+              `}
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                <MessageSquare size={14} className={currentChatId === chat.id ? 'text-blue-200' : 'text-gray-500'} />
+                <span className="truncate max-w-[140px]">{chat.title || 'New Chat'}</span>
+              </div>
+              <button 
+                onClick={(e) => deleteChat(e, chat.id)}
+                className={`opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-black/20`}
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className={`p-4 border-t ${theme.border}`}>
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg ${theme.hover} text-sm`}
+          >
+            <Settings size={18} />
+            <span>Settings</span>
+          </button>
+          <div className={`mt-2 flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${theme.textSecondary}`}>
+            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+            <span>Gemini 2.5 Flash</span>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
 
-const AdminPage = () => {
-  const { products, updateProduct, setView, user } = useShop();
-  const [editingId, setEditingId] = useState(null);
-  
-  // Guard clause
-  if (!user || !user.isAdmin) {
-    return (
-      <div className="text-center py-20">
-        <h2 className="text-2xl font-bold text-red-600">Access Denied</h2>
-        <Button onClick={() => setView('home')} className="mt-4">Go Home</Button>
-      </div>
-    );
-  }
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col h-full relative">
+        {/* Header (Mobile) */}
+        <div className="md:hidden flex items-center justify-between p-4 z-10">
+          <button onClick={() => setIsSidebarOpen(true)} className={`p-2 rounded-full ${theme.hover}`}>
+            <Menu size={24} />
+          </button>
+          <span className="font-medium">Gemini</span>
+          <div className="w-8"></div> {/* Spacer */}
+        </div>
 
-  const handleSave = (id, field, value) => {
-    const product = products.find(p => p.id === id);
-    if (product) {
-      updateProduct({ ...product, [field]: value });
-    }
-  };
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold flex items-center"><LayoutDashboard className="mr-2"/> Admin Dashboard</h1>
-        <Button>Add New Product</Button>
-      </div>
-
-      <div className="bg-white shadow-sm rounded-lg border overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {products.map(product => (
-              <tr key={product.id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
-                      <img src={product.image} alt={product.title} className="w-full h-full object-cover" />
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 md:px-20 py-6 custom-scrollbar">
+          {messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-80 mt-[-50px]">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-500 to-red-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Sparkles size={32} className="text-white" />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-medium bg-gradient-to-r from-blue-400 via-purple-400 to-red-400 bg-clip-text text-transparent">
+                Hello, Human
+              </h2>
+              <p className={`max-w-md ${theme.textSecondary}`}>
+                I'm a clone of Gemini. I can help you write code, plan your day, or just chat. Set your API key in settings to get started.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col space-y-6 max-w-3xl mx-auto pb-24">
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'model' && (
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-red-500 flex-shrink-0 flex items-center justify-center mt-1">
+                      <Sparkles size={16} className="text-white" />
                     </div>
-                    <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">{product.title}</div>
-                      <div className="text-sm text-gray-500">{product.category}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {editingId === product.id ? (
-                     <input 
-                       type="number" 
-                       className="w-20 border rounded px-2"
-                       value={product.price}
-                       onChange={(e) => handleSave(product.id, 'price', parseFloat(e.target.value))}
-                     />
-                  ) : (
-                    <div className="text-sm text-gray-900">${product.price.toFixed(2)}</div>
                   )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${product.stock > 10 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {product.stock} left
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <button 
-                    onClick={() => setEditingId(editingId === product.id ? null : product.id)}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    {editingId === product.id ? 'Done' : 'Edit Price'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
+                  
+                  <div className={`
+                    max-w-[85%] md:max-w-[80%] rounded-2xl px-5 py-3 
+                    ${msg.role === 'user' ? theme.messageUser : theme.messageAi}
+                  `}>
+                    {msg.role === 'user' ? (
+                       <p>{msg.content}</p>
+                    ) : (
+                       <div className="markdown-body">
+                         {renderContent(msg.content)}
+                       </div>
+                    )}
+                  </div>
+                  
+                  {msg.role === 'user' && (
+                    <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-1 ${isDarkMode ? 'bg-blue-900' : 'bg-blue-100'}`}>
+                      <User size={16} className={isDarkMode ? 'text-blue-200' : 'text-blue-700'} />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {isLoading && (
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-red-500 flex-shrink-0 flex items-center justify-center animate-pulse">
+                    <Sparkles size={16} className="text-white" />
+                  </div>
+                  <div className="flex items-center gap-1 mt-3">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
 
-const ProfilePage = () => {
-  const { user } = useShop();
-
-  if(!user) return null;
-
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">My Profile</h1>
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="flex items-center mb-4">
-          <div className="bg-blue-100 p-4 rounded-full mr-4">
-            <User size={32} className="text-blue-600"/>
+        {/* Input Area */}
+        <div className={`p-4 md:pb-6 md:pt-2 w-full max-w-4xl mx-auto ${theme.bg}`}>
+          <div className={`
+            relative flex items-end gap-2 rounded-3xl p-2 border transition-colors
+            ${theme.inputBg} ${theme.border} focus-within:border-blue-500/50 focus-within:ring-1 focus-within:ring-blue-500/20
+          `}>
+            <button className={`p-2 rounded-full ${theme.hover} ${theme.textSecondary} hidden md:block`}>
+              <Plus size={20} />
+            </button>
+            
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Gemini..."
+              rows={1}
+              className={`
+                w-full max-h-32 bg-transparent border-0 focus:ring-0 resize-none py-3 px-2 
+                ${theme.text} placeholder-gray-500
+              `}
+            />
+            
+            <button 
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              className={`
+                p-2 rounded-full mb-1 transition-all duration-200
+                ${input.trim() 
+                  ? 'bg-white text-black hover:bg-gray-200 shadow-md' 
+                  : `${theme.hover} ${theme.textSecondary}`}
+              `}
+            >
+              <Send size={18} className={input.trim() && "ml-0.5"} />
+            </button>
           </div>
-          <div>
-            <h2 className="text-xl font-bold">{user.name}</h2>
-            <p className="text-gray-500">{user.email}</p>
-          </div>
+          <p className="text-center text-[10px] md:text-xs text-gray-500 mt-2">
+            Gemini may display inaccurate info, including about people, so double-check its responses.
+          </p>
         </div>
       </div>
 
-      <h2 className="text-xl font-bold mb-4">Recent Orders</h2>
-      <div className="bg-white rounded-lg shadow border border-gray-100 p-8 text-center text-gray-500">
-        <Package size={48} className="mx-auto mb-2 opacity-20"/>
-        <p>No recent orders found.</p>
-      </div>
-    </div>
-  );
-};
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className={`w-full max-w-md rounded-2xl p-6 shadow-2xl ${isDarkMode ? 'bg-[#1e1f20] border border-gray-700' : 'bg-white'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Settings</h2>
+              <button onClick={() => setIsSettingsOpen(false)} className={`p-1 rounded-full ${theme.hover}`}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${theme.textSecondary}`}>
+                  Google API Key
+                </label>
+                <input 
+                  type="password" 
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Enter your Gemini API Key"
+                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none ${theme.inputBg} ${theme.border}`}
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Your key is stored locally in your browser. Get one at <a href="[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)" target="_blank" className="text-blue-400 underline">Google AI Studio</a>.
+                </p>
+              </div>
 
-const Toast = () => {
-  const { notification } = useShop();
-  if (!notification) return null;
-  return (
-    <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-xl z-50 animate-fade-in-up">
-      {notification}
-    </div>
-  );
-};
-
-const Footer = () => (
-  <footer className="bg-gray-900 text-gray-400 py-12 mt-auto">
-    <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8">
-      <div>
-        <div className="text-2xl font-bold text-white mb-4">NexStore</div>
-        <p className="text-sm">The best mock marketplace on the web. Built with React & Tailwind.</p>
-      </div>
-      <div>
-        <h4 className="text-white font-bold mb-4">Shop</h4>
-        <ul className="space-y-2 text-sm">
-          <li>All Products</li>
-          <li>Featured</li>
-          <li>Deals</li>
-        </ul>
-      </div>
-      <div>
-        <h4 className="text-white font-bold mb-4">Support</h4>
-        <ul className="space-y-2 text-sm">
-          <li>Help Center</li>
-          <li>Returns</li>
-          <li>Privacy Policy</li>
-        </ul>
-      </div>
-      <div>
-        <h4 className="text-white font-bold mb-4">Newsletter</h4>
-        <div className="flex">
-          <input className="bg-gray-800 text-white px-3 py-2 rounded-l-md w-full" placeholder="Email"/>
-          <button className="bg-blue-600 text-white px-4 rounded-r-md">Subscribe</button>
+              <div className="pt-2">
+                <button 
+                  onClick={() => saveApiKey(apiKey)}
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-colors"
+                >
+                  Save & Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div className="max-w-7xl mx-auto px-4 mt-8 pt-8 border-t border-gray-800 text-center text-sm">
-      &copy; 2023 NexStore Marketplace. All rights reserved.
-    </div>
-  </footer>
-);
-
-/**
- * MAIN APP COMPONENT
- * ------------------------------------------------------------------
- */
-const MainApp = () => {
-  const { currentView } = useShop();
-
-  const renderView = () => {
-    switch (currentView) {
-      case 'home': return <HomePage />;
-      case 'listing': return <ListingPage />;
-      case 'product': return <ProductDetailPage />;
-      case 'cart': return <CartPage />;
-      case 'checkout': return <CheckoutPage />;
-      case 'login': return <AuthPage />;
-      case 'admin': return <AdminPage />;
-      case 'profile': return <ProfilePage />;
-      default: return <HomePage />;
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex flex-col bg-white text-gray-900 font-sans">
-      <Navbar />
-      <main className="flex-grow">
-        {renderView()}
-      </main>
-      <Footer />
-      <Toast />
+      )}
+      
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: ${isDarkMode ? '#333' : '#ddd'};
+          border-radius: 20px;
+        }
+      `}</style>
     </div>
   );
-};
-
-const App = () => (
-  <ShopProvider>
-    <MainApp />
-  </ShopProvider>
-);
-
-export default App;
+}
